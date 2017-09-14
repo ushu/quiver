@@ -26,7 +26,6 @@ import (
 
 func main() {
 	if len(os.Args) != 3 {
-		fmt.Println(os.Args)
 		fmt.Println("Usage: quiver_to_markdown QUIVER_LIBRARY OUTPUT_DIRECTORY")
 		os.Exit(1)
 	}
@@ -134,15 +133,25 @@ func writeNoteMarkdown(p string, note *quiver.Note) error {
 			}
 		}
 
+		// content to write: we replace all the data links to relative links
+		data := string(c.Data)
+		data = strings.Replace(data, "quiver-image-url/", "resources/", -1)
+
 		switch {
 		case c.IsCode():
-			_, err = fmt.Fprintf(out, "```%v\n%v\n```", c.Language, string(c.Data))
+			_, err = fmt.Fprintf(out, "```%v\n%v\n```", c.Language, data)
 		case c.IsLatex():
-			_, err = fmt.Fprintf(out, "```latex\n%v\n```", string(c.Data))
+			_, err = fmt.Fprintf(out, "```latex\n%v\n```", data)
 		case c.IsMarkdown():
-			_, err = fmt.Fprintln(out, string(c.Data))
+			_, err = fmt.Fprintln(out, data)
 		case c.IsText():
-			_, err = fmt.Fprintln(out, string(c.Data))
+			_, err = fmt.Fprintln(out, data)
+		case c.IsDiagram():
+			tool := "Sequence diagram, see https://bramp.github.io/js-sequence-diagrams"
+			if c.DiagramType == "flow" {
+				tool = "Flowchart diagram, see http://flowchart.js.org"
+			}
+			_, err = fmt.Fprintf(out, "```javascript\n// %v\n%v\n```", tool, data)
 		}
 		if err != nil {
 			return err

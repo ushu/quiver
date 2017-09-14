@@ -53,9 +53,16 @@ This library comes with two binaries:
 * `cmd/quiver_to_json` is a small tool that allows loading a full library into a single JSON file
 * `cmd/quiver_to_markdown` is a small tool output all the notes as a tree of Markdown files
 
+You can install then right away with the `go` tool:
+
+```sh
+$ go install github.com/ushu/quiver/cmd/quiver_to_markdown
+$ go install github.com/ushu/quiver/cmd/quiver_to_json
+```
+
 ## Version & Contributing
 
-This is **v0.1.0** of the tool, and is an **early release** by all standards.
+This is **v0.2.0** of the tool, and is an **early release** by all standards.
 
 Feel free to contribute anytime !
 

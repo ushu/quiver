@@ -31,7 +31,7 @@ import (
 )
 
 // The version of the quiver package
-const Version = "0.1.0"
+const Version = "0.2.0"
 
 // Library represents the contents of a Quiver library (.qvlibrary) file.
 type Library struct {
@@ -63,7 +63,7 @@ type Note struct {
 }
 
 // A timestamp in a Quiver note metadata file (meta.json).
-// It contains time info (from time.Time) by marshals as an integer.
+// It holds time info (from time.Time) and marshals as an integer.
 type TimeStamp time.Time
 
 func (u *TimeStamp) MarshalJSON() ([]byte, error) {
@@ -143,14 +143,17 @@ const (
 	TextCell     CellType = "text"
 	MarkdownCell CellType = "markdown"
 	LatexCell    CellType = "latex"
+	DiagramCell  CellType = "diagram"
 )
 
 // A cell inside a Quiver note.
 type Cell struct {
 	// The type of the cell.
 	Type CellType `json:"type"`
-	// The language of the cell: only relevant for CodeCell type.
+	// The language of the cell: only relevant for CodeCell cells.
 	Language string `json:"language,omitempty"`
+	// The type of diagram: only relevant for DiagramCell cells.
+	DiagramType string `json:"diagramType,omitempty"`
 	// The data for the cell, aka. all the actual content.
 	Data string `json:"data"`
 }
@@ -173,6 +176,11 @@ func (c *Cell) IsText() bool {
 // IsLatex returns true if the Cell is of Type LatexCell.
 func (c *Cell) IsLatex() bool {
 	return c.Type == LatexCell
+}
+
+// IsDiagram returns true if the Cell is of Type DiagramCell.
+func (c *Cell) IsDiagram() bool {
+	return c.Type == DiagramCell
 }
 
 // IsLibrary checks that the element at the given path is indeed a Quiver library, and
