@@ -1,0 +1,9 @@
+{
+  "title": "Tags",
+  "cells": [
+    {
+      "type": "text",
+      "data": "This cell has tags."
+    }
+  ]
+}

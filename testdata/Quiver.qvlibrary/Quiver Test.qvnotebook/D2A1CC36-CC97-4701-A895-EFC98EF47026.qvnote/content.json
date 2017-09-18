@@ -1,0 +1,17 @@
+{
+  "title": "Text cells",
+  "cells": [
+    {
+      "type": "text",
+      "data": "This is a text Cell."
+    },
+    {
+      "type": "text",
+      "data": "This is another text Cell with <b>bold</b>, <i>italics</i>, <u>underlined</u> and <strike>dashed</strike> text."
+    },
+    {
+      "type": "text",
+      "data": "You can also mix&nbsp;<b><i>bold and italics</i></b>,&nbsp;<b><u>bold and underlined</u></b>,&nbsp;<i><u>italics and underlined</u></i>,&nbsp;<b><strike>etc.</strike></b>"
+    }
+  ]
+}

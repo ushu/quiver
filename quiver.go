@@ -31,7 +31,9 @@ import (
 )
 
 // The version of the quiver package
-const Version = "0.2.0"
+const Version = "0.3.0"
+
+// The data tree: holds all the data of the library
 
 // Library represents the contents of a Quiver library (.qvlibrary) file.
 type Library struct {
@@ -62,28 +64,6 @@ type Note struct {
 	Resources []*NoteResource `json:"resources,omitempty"`
 }
 
-// A timestamp in a Quiver note metadata file (meta.json).
-// It holds time info (from time.Time) and marshals as an integer.
-type TimeStamp time.Time
-
-func (u *TimeStamp) MarshalJSON() ([]byte, error) {
-	secs := (*time.Time)(u).Second()
-	return json.Marshal(secs)
-}
-
-func (u *TimeStamp) UnmarshalJSON(data []byte) error {
-	var secs int64
-	err := json.Unmarshal(data, &secs)
-	if err != nil {
-		return err
-	}
-
-	// copy values
-	*u = TimeStamp(time.Unix(secs, 0))
-
-	return nil
-}
-
 // NoteMetadata represents the contents of a Quiver note metadata (meta.json) file.
 type NoteMetadata struct {
 	// The time the note was created.
@@ -98,13 +78,28 @@ type NoteMetadata struct {
 	UUID string `json:"uuid"`
 }
 
-// NoteContent represents the contents of a Quiver not content (content.json) file.
-//
-// Beware: this structure does note contain the Title of the cell, since it is already held in the
-// NoteMetadata file.
-type NoteContent struct {
-	// The list of all cells in the note.
-	Cells []*Cell `json:"cells"`
+// A timestamp in a Quiver note metadata file (meta.json).
+// It holds time info (from time.Time) and marshals as an integer.
+type TimeStamp time.Time
+
+// MarshalJSON marshals TimeStamp as an integer (seconds since Epoch).
+func (u *TimeStamp) MarshalJSON() ([]byte, error) {
+	secs := (*time.Time)(u).Unix()
+	return json.Marshal(secs)
+}
+
+// MarshalJSON unmarshals TimeStamp from an integer (seconds since Epoch).
+func (u *TimeStamp) UnmarshalJSON(data []byte) error {
+	var secs int64
+	err := json.Unmarshal(data, &secs)
+	if err != nil {
+		return err
+	}
+
+	// copy values
+	*u = TimeStamp(time.Unix(secs, 0))
+
+	return nil
 }
 
 // NoteContent represents the contents of a Quiver note resource: any file found under the resources/ folder in the note.
@@ -116,6 +111,7 @@ type NoteResource struct {
 	Data []byte `json:"data"`
 }
 
+// MarshalJSON marshals
 func (n *NoteResource) MarshalJSON() ([]byte, error) {
 	// Build a data uri for the resource
 	ext := filepath.Ext(n.Name)
@@ -132,6 +128,50 @@ func (n *NoteResource) MarshalJSON() ([]byte, error) {
 		url,
 	}
 	return json.Marshal(aux)
+}
+
+// UnmarshalJSON unmarshals NoteResource from data:// url
+func (u *NoteResource) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		Name string
+		URL  string
+	}
+	err := json.Unmarshal(data, aux)
+	if err != nil {
+		return err
+	}
+
+	// Name OK
+	u.Name = aux.Name
+
+	// Split data url
+	if !strings.HasPrefix(aux.URL, "data:") {
+		return errors.New(fmt.Sprintf("Invalid data URL %v", aux.URL))
+	}
+	s := strings.SplitN(aux.URL, ",", 2)
+	if len(s) != 2 {
+		return errors.New(fmt.Sprintf("Invalid data URL %v", aux.URL))
+	}
+
+	// Decode the base64-encoded data
+	resData, err := base64.RawURLEncoding.DecodeString(s[1])
+	if err != nil {
+		return err
+	}
+
+	// Data found !
+	u.Data = resData
+
+	return nil
+}
+
+// NoteContent represents the contents of a Quiver not content (content.json) file.
+//
+// Beware: this structure does note contain the Title of the cell, since it is already held in the
+// NoteMetadata file.
+type NoteContent struct {
+	// The list of all cells in the note.
+	Cells []*Cell `json:"cells"`
 }
 
 // The type of a cell inside of a Quiver Note
@@ -355,10 +395,10 @@ func ReadNoteResources(path string) ([]*NoteResource, error) {
 	res := make([]*NoteResource, len(files))
 	for i, file := range files {
 		name := file.Name()
-		path := filepath.Join(path, name)
+		fp := filepath.Join(path, name)
 
 		// Read the file completely in memory
-		f, err := os.Open(path)
+		f, err := os.Open(fp)
 		if err != nil {
 			return nil, err
 		}

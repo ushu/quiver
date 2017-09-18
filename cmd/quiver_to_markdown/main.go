@@ -14,15 +14,37 @@ import (
 	"fmt"
 	"os"
 
-	"errors"
 	"path/filepath"
 
 	"strings"
 
 	"bufio"
 
+	"io/ioutil"
+
+	"regexp"
+
 	"github.com/ushu/quiver"
 )
+
+// PathElementReplacer
+//
+// Theorically, all characters are acceptable (https://en.wikipedia.org/wiki/HFS_Plus) in path elements,
+// in practise they can cause strange issues in Finder...
+var PathElementReplacer = strings.NewReplacer(
+	"/", "|",
+	":", "-",
+)
+
+// Rewrite language name from Quiver Code Cell conventions to Github Markdown ones
+var languageEquivalents = map[string]string {
+	"c_cpp": "c++",
+}
+
+// Index of notes by UUID -> new path
+type NotesIndex map[string]string
+
+var noteURLRegexp = regexp.MustCompile(`quiver-note-url/([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})`)
 
 func main() {
 	if len(os.Args) != 3 {
@@ -37,24 +59,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	var index NotesIndex = make(map[string]string)
+	for _, nb := range library.Notebooks {
+		for _, n := range nb.Notes {
+			// build the path
+			p := filepath.Join(CleanPathElement(nb.Name), CleanPathElement(n.Title)+".md")
+			index[n.UUID] = p
+		}
+	}
+
 	// output to the provided directory
 	outPath := os.Args[2]
-	err = writeLibrary(outPath, library)
+	err = writeLibrary(outPath, library, index)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-func writeLibrary(outPath string, library *quiver.Library) error {
-	err := EnsureDirectory(outPath)
+func writeLibrary(outPath string, library *quiver.Library, index NotesIndex) error {
+	err := ResetDirectory(outPath, false)
 	if err != nil {
 		return err
 	}
 
 	for _, nb := range library.Notebooks {
 		np := filepath.Join(outPath, CleanPathElement(nb.Name))
-		err = writeNoteBook(np, nb)
+		err = writeNoteBook(np, nb, index)
 		if err != nil {
 			return err
 		}
@@ -63,14 +94,14 @@ func writeLibrary(outPath string, library *quiver.Library) error {
 	return nil
 }
 
-func writeNoteBook(np string, nb *quiver.Notebook) error {
-	err := EnsureDirectory(np)
+func writeNoteBook(np string, nb *quiver.Notebook, index NotesIndex) error {
+	err := ResetDirectory(np, true)
 	if err != nil {
 		return err
 	}
 
 	for _, note := range nb.Notes {
-		err = writeNote(np, note)
+		err := writeNote(np, note, index)
 		if err != nil {
 			return err
 		}
@@ -79,7 +110,7 @@ func writeNoteBook(np string, nb *quiver.Notebook) error {
 	return nil
 }
 
-func writeNote(np string, note *quiver.Note) error {
+func writeNote(np string, note *quiver.Note, index NotesIndex) error {
 	fn := CleanPathElement(note.Title)
 	if len(fn) == 0 {
 		return nil // skip
@@ -87,14 +118,14 @@ func writeNote(np string, note *quiver.Note) error {
 	p := filepath.Join(np, fn+".md")
 
 	// Write the note itself
-	err := writeNoteMarkdown(p, note)
+	err := writeNoteMarkdown(p, note, index)
 	if err != nil {
 		return err
 	}
 
 	// has resources ?
-	rp := filepath.Join(np, "resources")
 	if len(note.Resources) > 0 {
+		rp := filepath.Join(np, "resources")
 		err = EnsureDirectory(rp)
 		if err != nil {
 			return err
@@ -107,14 +138,12 @@ func writeNote(np string, note *quiver.Note) error {
 				return err
 			}
 		}
-	} else {
-		os.RemoveAll(rp)
 	}
 
 	return nil
 }
 
-func writeNoteMarkdown(p string, note *quiver.Note) error {
+func writeNoteMarkdown(p string, note *quiver.Note, index NotesIndex) error {
 	f, err := os.Create(p)
 	if err != nil {
 		return err
@@ -137,9 +166,21 @@ func writeNoteMarkdown(p string, note *quiver.Note) error {
 		data := string(c.Data)
 		data = strings.Replace(data, "quiver-image-url/", "resources/", -1)
 
+		if index != nil {
+			data = noteURLRegexp.ReplaceAllStringFunc(data, func(m string) string {
+				UUID := strings.TrimPrefix(m, "quiver-note-url/")
+				return "../" + index[UUID]
+			})
+		}
+
 		switch {
 		case c.IsCode():
-			_, err = fmt.Fprintf(out, "```%v\n%v\n```", c.Language, data)
+			// load language and (optionally) converts it to its Github Markdown equivalent
+			l := c.Language
+			if eq, ok := languageEquivalents[l]; ok {
+				l = eq
+			}
+			_, err = fmt.Fprintf(out, "```%v\n%v\n```", l, data)
 		case c.IsLatex():
 			_, err = fmt.Fprintf(out, "```latex\n%v\n```", data)
 		case c.IsMarkdown():
@@ -162,45 +203,51 @@ func writeNoteMarkdown(p string, note *quiver.Note) error {
 }
 
 func writeResource(op string, r *quiver.NoteResource) error {
-	rf, err := os.Create(op)
-	if err != nil {
-		return err
-	}
-	defer rf.Close()
-
-	buf := bufio.NewWriter(rf)
-	defer buf.Flush()
-
-	_, err = fmt.Fprintln(buf, string(r.Data))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return ioutil.WriteFile(op, r.Data, 0755)
 }
 
-func EnsureDirectory(outPath string) error {
+func ResetDirectory(outPath string, removeRoot bool) error {
 	stat, err := os.Stat(outPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return err
 		}
-		// now we create the dir
-		err = os.MkdirAll(outPath, 0755)
-		if err != nil {
-			msg := fmt.Sprintf("Could not create directory: %v", outPath)
-			return errors.New(msg)
+	} else if stat.IsDir() {
+		if removeRoot {
+			err = os.RemoveAll(outPath)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Remove all subdirs, except hidden ones, but keep the root dir (outPath)
+			// this is mainly to allow storing the results in a git repo
+			files, err := ioutil.ReadDir(outPath)
+			if err != nil {
+				return err
+			}
+			for _, f := range files {
+				// skip standard files and hidden dirs
+				if !f.IsDir() || strings.HasPrefix(f.Name(), ".") {
+					continue
+				}
+				os.RemoveAll(filepath.Join(outPath, f.Name()))
+			}
 		}
-	} else if !stat.IsDir() {
-		msg := fmt.Sprintf("Shoud be a directory: %v", outPath)
-		return errors.New(msg)
 	}
 
+	return EnsureDirectory(outPath)
+}
+
+func EnsureDirectory(outPath string) error {
+	err := os.MkdirAll(outPath, 0755)
+	if err != nil && !os.IsExist(err) {
+		return err
+	}
 	return nil
 }
 
 func CleanPathElement(p string) string {
-	p = strings.Replace(p, "/", "|", -1)
-	p = strings.Replace(p, ":", "-", -1)
-	return strings.TrimSpace(p)
+	p = strings.TrimSpace(p)
+	p = PathElementReplacer.Replace(p)
+	return p
 }

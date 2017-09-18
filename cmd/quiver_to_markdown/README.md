@@ -5,7 +5,7 @@ Converts a [Quiver] library to a set of markdown files.
 ### Installing
 
 ```sh
-$ go install github.com/ushu/quiver/cmd/quiver_to_markdown
+$ go get -u github.com/ushu/quiver/cmd/quiver_to_markdown
 ```
 
 ### Usage
