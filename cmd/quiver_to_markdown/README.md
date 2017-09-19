@@ -11,7 +11,11 @@ $ go get -u github.com/ushu/quiver/cmd/quiver_to_markdown
 ### Usage
 
 ```sh
+# Convert an existing Quiver library to Markdown
 $ quiver_to_markdown /path/to/Quiver.qvlibrary /output/path
+
+# Print version
+$ quiver_to_markdown -v
 ```
 
 Then all the notes are availation in `/output/path` as Markdown files.

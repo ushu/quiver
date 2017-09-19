@@ -5,7 +5,6 @@ It allows to backup your notes on Github or any other service that supports mark
 
 Usage:
 
-	# To load the Quiver library into a set of Markdown files
 	$ quiver_to_markdown /path/to/Quiver.qvlibrary output_path
 */
 package main
@@ -24,6 +23,8 @@ import (
 
 	"regexp"
 
+	"flag"
+
 	"github.com/ushu/quiver"
 )
 
@@ -37,7 +38,7 @@ var PathElementReplacer = strings.NewReplacer(
 )
 
 // Rewrite language name from Quiver Code Cell conventions to Github Markdown ones
-var languageEquivalents = map[string]string {
+var languageEquivalents = map[string]string{
 	"c_cpp": "c++",
 }
 
@@ -46,14 +47,29 @@ type NotesIndex map[string]string
 
 var noteURLRegexp = regexp.MustCompile(`quiver-note-url/([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})`)
 
+var flagVersion bool
+
+func init() {
+	flag.BoolVar(&flagVersion, "v", false, "print version")
+}
+
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: quiver_to_markdown QUIVER_LIBRARY OUTPUT_DIRECTORY")
+	flag.Parse()
+
+	if flagVersion {
+		fmt.Printf("v%v\n", quiver.Version)
+		os.Exit(0)
+	}
+
+	if flag.NArg() != 2 {
+		fmt.Println("Usage: quiver_to_markdown [-v] QUIVER_LIBRARY OUTPUT_DIRECTORY")
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
 	// Read full library into memory
-	library, err := quiver.ReadLibrary(os.Args[1], true)
+	inPath := flag.Arg(0)
+	library, err := quiver.ReadLibrary(inPath, true)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -69,12 +85,14 @@ func main() {
 	}
 
 	// output to the provided directory
-	outPath := os.Args[2]
+	outPath := flag.Arg(1)
 	err = writeLibrary(outPath, library, index)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	fmt.Printf("Done converting %q to %q\n", inPath, outPath)
 }
 
 func writeLibrary(outPath string, library *quiver.Library, index NotesIndex) error {

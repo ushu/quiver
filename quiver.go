@@ -31,7 +31,7 @@ import (
 )
 
 // The version of the quiver package
-const Version = "0.3.0"
+const Version = "0.3.1"
 
 // The data tree: holds all the data of the library
 
