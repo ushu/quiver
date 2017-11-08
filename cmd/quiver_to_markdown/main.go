@@ -26,6 +26,8 @@ import (
 	"flag"
 
 	"github.com/ushu/quiver"
+	"path"
+	"github.com/pkg/errors"
 )
 
 // PathElementReplacer
@@ -75,17 +77,35 @@ func main() {
 		os.Exit(1)
 	}
 
+	outPath := flag.Arg(1)
+
 	var index NotesIndex = make(map[string]string)
-	for _, nb := range library.Notebooks {
-		for _, n := range nb.Notes {
-			// build the path
-			p := filepath.Join(CleanPathElement(nb.Name), CleanPathElement(n.Title)+".md")
-			index[n.UUID] = p
+	err = library.WalkNotebooksHierarchy(func(nb *quiver.Notebook, parents []*quiver.Notebook) error {
+		// build the notebook path
+		pe := make([]string, 0)
+		pe = append(pe, outPath)
+		for _, p := range parents {
+			pe = append(pe, CleanPathElement(p.Name))
 		}
+		// then rhe notebook and the file name
+		pe = append(pe, CleanPathElement(nb.Name))
+		nbp := filepath.Join(pe...)
+
+		for _, n := range nb.Notes {
+			if _, ok := index[n.UUID]; ok {
+				return errors.Errorf("There found two notes with UUID \"%s\", aborting...", n.UUID)
+			}
+			index[n.UUID] = filepath.Join(nbp, CleanPathElement(n.Title)+".md")
+		}
+
+		return nil
+	})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	// output to the provided directory
-	outPath := flag.Arg(1)
 	err = writeLibrary(outPath, library, index)
 	if err != nil {
 		fmt.Println(err)
@@ -101,15 +121,19 @@ func writeLibrary(outPath string, library *quiver.Library, index NotesIndex) err
 		return err
 	}
 
-	for _, nb := range library.Notebooks {
-		np := filepath.Join(outPath, CleanPathElement(nb.Name))
-		err = writeNoteBook(np, nb, index)
-		if err != nil {
-			return err
+	return library.WalkNotebooksHierarchy(func(nb *quiver.Notebook, parents []*quiver.Notebook) error {
+		// build the notebook path
+		pe := make([]string, 0)
+		pe = append(pe, outPath)
+		for _, p := range parents {
+			pe = append(pe, CleanPathElement(p.Name))
 		}
-	}
+		// then rhe notebook and the file name
+		pe = append(pe, CleanPathElement(nb.Name))
+		nbp := filepath.Join(pe...)
 
-	return nil
+		return writeNoteBook(nbp, nb, index)
+	})
 }
 
 func writeNoteBook(np string, nb *quiver.Notebook, index NotesIndex) error {
@@ -119,7 +143,8 @@ func writeNoteBook(np string, nb *quiver.Notebook, index NotesIndex) error {
 	}
 
 	for _, note := range nb.Notes {
-		err := writeNote(np, note, index)
+		p := index[note.UUID]
+		err := writeNote(p, note, index)
 		if err != nil {
 			return err
 		}
@@ -128,13 +153,7 @@ func writeNoteBook(np string, nb *quiver.Notebook, index NotesIndex) error {
 	return nil
 }
 
-func writeNote(np string, note *quiver.Note, index NotesIndex) error {
-	fn := CleanPathElement(note.Title)
-	if len(fn) == 0 {
-		return nil // skip
-	}
-	p := filepath.Join(np, fn+".md")
-
+func writeNote(p string, note *quiver.Note, index NotesIndex) error {
 	// Write the note itself
 	err := writeNoteMarkdown(p, note, index)
 	if err != nil {
@@ -143,7 +162,7 @@ func writeNote(np string, note *quiver.Note, index NotesIndex) error {
 
 	// has resources ?
 	if len(note.Resources) > 0 {
-		rp := filepath.Join(np, "resources")
+		rp := filepath.Join(path.Dir(p), "resources")
 		err = EnsureDirectory(rp)
 		if err != nil {
 			return err

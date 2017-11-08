@@ -62,7 +62,7 @@ $ go install github.com/ushu/quiver/cmd/quiver_to_json
 
 ## Version & Contributing
 
-This is **v0.2.0** of the tool, and is an **early release** by all standards.
+This is **v0.3.2** of the tool, and is an **early release** by all standards.
 
 Feel free to contribute anytime !
 

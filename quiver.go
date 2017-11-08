@@ -31,14 +31,29 @@ import (
 )
 
 // The version of the quiver package
-const Version = "0.3.1"
+const Version = "0.3.2"
 
 // The data tree: holds all the data of the library
 
 // Library represents the contents of a Quiver library (.qvlibrary) file.
 type Library struct {
+	*LibraryMetadata
 	// The list of Notebooks found inside the Library.
 	Notebooks []*Notebook `json:"notebooks"`
+}
+
+// LibraryMetadata represents the contents of a Quiver library metadata (meta.json) file.
+type LibraryMetadata struct {
+	// The root of the notebook hierarchy
+	Children []NotebookHierarchyInfo `json:"children"`
+}
+
+// A note in the Quote notebooks hierarchy
+type NotebookHierarchyInfo struct {
+	// The UUID of the Notebook.
+	UUID string `json:"uuid"`
+	// The list of its children
+	Children []NotebookHierarchyInfo `json:"children"`
 }
 
 // Notebook represents the contents of a Quiver notebook (.qvnotebook) directory.
@@ -146,11 +161,11 @@ func (u *NoteResource) UnmarshalJSON(data []byte) error {
 
 	// Split data url
 	if !strings.HasPrefix(aux.URL, "data:") {
-		return errors.New(fmt.Sprintf("Invalid data URL %v", aux.URL))
+		return fmt.Errorf("Invalid data URL %v", aux.URL)
 	}
 	s := strings.SplitN(aux.URL, ",", 2)
 	if len(s) != 2 {
-		return errors.New(fmt.Sprintf("Invalid data URL %v", aux.URL))
+		return fmt.Errorf("data URL %v", aux.URL)
 	}
 
 	// Decode the base64-encoded data
@@ -256,17 +271,86 @@ func ReadLibrary(path string, loadResources bool) (*Library, error) {
 		return nil, err
 	}
 
-	notebooks := make([]*Notebook, len(files))
-	for i, f := range files {
+	var metadata *LibraryMetadata
+	notebooks := make([]*Notebook, 0, len(files))
+	for _, f := range files {
 		p := filepath.Join(path, f.Name())
-		n, err := ReadNotebook(p, loadResources)
-		if err != nil {
-			return nil, err
+
+		// ignore root meta.json
+		if f.Name() == "meta.json" {
+			metadata, err = ReadLibraryMetadata(p)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// all other elements should be notebooks
+			n, err := ReadNotebook(p, loadResources)
+			if err != nil {
+				return nil, err
+			}
+			notebooks = append(notebooks, n)
 		}
-		notebooks[i] = n
 	}
 
-	return &Library{notebooks}, nil
+	return &Library{metadata, notebooks}, nil
+}
+
+// WalkNotebooksHierarchy returns all the notebooks in order, allowing to "explore" the internal hierarchy of the
+// Quiver library.
+func (m *Library) WalkNotebooksHierarchy(f func(n *Notebook, parents []*Notebook) error) error {
+	notebooks := make(map[string]*Notebook, len(m.Notebooks))
+	for _, n := range m.Notebooks {
+		notebooks[n.UUID] = n
+	}
+
+	parents := make([]string, 0)
+	for _, n := range m.LibraryMetadata.Children {
+		err := walkNotebooksHierarchy(n, parents, func(c string, parents []string) error {
+			pp := make([]*Notebook, len(parents))
+			for i, p := range parents {
+				pp[i] = notebooks[p]
+			}
+			return f(notebooks[c], pp)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func walkNotebooksHierarchy(n NotebookHierarchyInfo, parents []string, f func(n string, parents []string) error) error {
+	err := f(n.UUID, parents)
+	if err != nil {
+		return err
+	}
+
+	if len(n.Children) > 0 {
+		p := append(parents[:], n.UUID)
+		for _, c := range n.Children {
+			err = walkNotebooksHierarchy(c, p, f)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// ReadLibraryMetadata loads the library "meta.json" at the given path.
+func ReadLibraryMetadata(path string) (*LibraryMetadata, error) {
+	// find and read metadata file
+	mf, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer mf.Close()
+
+	// Read metadata
+	buf := bufio.NewReader(mf)
+	return ParseLibraryMetadata(buf)
 }
 
 // IsNoteBook checks that the element at the given path is indeed a Quiver notebook, and
@@ -303,7 +387,11 @@ func ReadNotebook(path string, loadResources bool) (*Notebook, error) {
 	}
 
 	var metadata *NotebookMetadata
-	notes := make([]*Note, len(files)-1)
+	var numNotes = 0
+	if len(files) > 1 {
+		numNotes = len(files) - 1
+	}
+	notes := make([]*Note, numNotes)
 	for i, f := range files {
 		p := filepath.Join(path, f.Name())
 		if f.Name() == "meta.json" {
@@ -453,6 +541,17 @@ func ReadNotebookMetadata(path string) (*NotebookMetadata, error) {
 
 	buf := bufio.NewReader(f)
 	return ParseNotebookMetadata(buf)
+}
+
+// ParseLibraryMetadata loads the JSON from the given stream into a LibraryMetadata.
+func ParseLibraryMetadata(r io.Reader) (*LibraryMetadata, error) {
+	d := json.NewDecoder(r)
+	m := new(LibraryMetadata)
+	err := d.Decode(m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // ParseNotebookMetadata loads the JSON from the given stream into a NotebookMetadata.
