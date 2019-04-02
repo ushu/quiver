@@ -25,9 +25,9 @@ import (
 
 	"flag"
 
+	"github.com/pkg/errors"
 	"github.com/ushu/quiver"
 	"path"
-	"github.com/pkg/errors"
 )
 
 // PathElementReplacer
@@ -207,7 +207,9 @@ func writeNoteMarkdown(p string, note *quiver.Note, index NotesIndex) error {
 			data = noteURLRegexp.ReplaceAllStringFunc(data, func(m string) string {
 				UUID := strings.TrimPrefix(m, "quiver-note-url/")
 				UUID = strings.TrimPrefix(UUID, "quiver:///notes/")
-				return "../" + index[UUID]
+				dir, _ := filepath.Rel(filepath.Dir(p), filepath.Dir(index[UUID]))
+				name := filepath.Base(index[UUID])
+				return dir + "/" + name
 			})
 		}
 
