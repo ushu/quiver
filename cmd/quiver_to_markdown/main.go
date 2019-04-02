@@ -47,7 +47,7 @@ var languageEquivalents = map[string]string{
 // Index of notes by UUID -> new path
 type NotesIndex map[string]string
 
-var noteURLRegexp = regexp.MustCompile(`quiver-note-url/([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})`)
+var noteURLRegexp = regexp.MustCompile(`(quiver-note-url|quiver:///notes)/([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})`)
 
 var flagVersion bool
 
@@ -206,6 +206,7 @@ func writeNoteMarkdown(p string, note *quiver.Note, index NotesIndex) error {
 		if index != nil {
 			data = noteURLRegexp.ReplaceAllStringFunc(data, func(m string) string {
 				UUID := strings.TrimPrefix(m, "quiver-note-url/")
+				UUID = strings.TrimPrefix(UUID, "quiver:///notes/")
 				return "../" + index[UUID]
 			})
 		}
