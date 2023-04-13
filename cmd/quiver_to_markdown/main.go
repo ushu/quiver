@@ -10,24 +10,18 @@ Usage:
 package main
 
 import (
-	"fmt"
-	"os"
-
-	"path/filepath"
-
-	"strings"
-
 	"bufio"
-
-	"io/ioutil"
-
-	"regexp"
-
 	"flag"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/ushu/quiver"
-	"path"
 )
 
 // PathElementReplacer

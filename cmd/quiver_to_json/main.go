@@ -13,10 +13,9 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
-
-	"flag"
 
 	"github.com/ushu/quiver"
 )
