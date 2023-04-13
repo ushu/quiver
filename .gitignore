@@ -1,4 +1,5 @@
 .DS_Store
+vendor/
 .idea
 cmd/quiver_to_json/quiver_to_json
 cmd/quiver_to_markdown/quiver_to_markdown
