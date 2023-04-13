@@ -3,15 +3,15 @@ Package quiver implements a simple library for parsing quiver libraries, noteboo
 
 The most straightforward way to use it is to load a library from disk, and then iterate the object tree:
 
-    lib, _ := quiver.ReadLibrary("/path/to/library.quiverlibrary", false)
+	lib, _ := quiver.ReadLibrary("/path/to/library.quiverlibrary", false)
 
-    // Print the title of all the notes in all the notebooks
-    for _, notebooks := range lib.Notebooks {
-    	for _, note := notebook.Notes {
-    		fmt.Println(n.Title)
-    		//...
-    	}
-    }
+	// Print the title of all the notes in all the notebooks
+	for _, notebooks := range lib.Notebooks {
+		for _, note := notebook.Notes {
+			fmt.Println(n.Title)
+			//...
+		}
+	}
 */
 package quiver
 
@@ -121,6 +121,8 @@ func (u *TimeStamp) UnmarshalJSON(data []byte) error {
 type NoteResource struct {
 	// The file name.
 	Name string `json:"name"`
+	// The file relative path.
+	Rel string `json:"rel"`
 	// The file data as raw bytes.
 	// It serializes in JSON as a data URI.
 	Data []byte `json:"data"`
@@ -455,7 +457,7 @@ func ReadNote(path string, loadResources bool) (*Note, error) {
 	var res []*NoteResource
 	if loadResources {
 		rp := filepath.Join(path, "resources")
-		res, err = ReadNoteResources(rp)
+		res, err = ReadNoteResources(rp, "")
 		// we check for error but ignore not existing dir
 		if err != nil && !os.IsNotExist(err) {
 			return nil, err
@@ -466,7 +468,7 @@ func ReadNote(path string, loadResources bool) (*Note, error) {
 }
 
 // ReadNoteResource loads the resource (any file actually) into a NoteResource instance.
-func ReadNoteResources(path string) ([]*NoteResource, error) {
+func ReadNoteResources(path string, rel string) ([]*NoteResource, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -480,24 +482,37 @@ func ReadNoteResources(path string) ([]*NoteResource, error) {
 		return nil, err
 	}
 
-	res := make([]*NoteResource, len(files))
-	for i, file := range files {
+	res := []*NoteResource{}
+	for _, file := range files {
 		name := file.Name()
 		fp := filepath.Join(path, name)
 
-		// Read the file completely in memory
-		f, err := os.Open(fp)
+		stat, err = os.Stat(fp)
 		if err != nil {
 			return nil, err
 		}
-		buf, err := ioutil.ReadAll(f)
-		f.Close()
-		if err != nil {
-			return nil, err
-		}
+		if stat.IsDir() {
+			rp := filepath.Join(rel, name)
+			r, err := ReadNoteResources(fp, rp)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, r...)
+		} else {
+			// Read the file completely in memory
+			f, err := os.Open(fp)
+			if err != nil {
+				return nil, err
+			}
+			buf, err := ioutil.ReadAll(f)
+			f.Close()
+			if err != nil {
+				return nil, err
+			}
 
-		// And add the note to the list
-		res[i] = &NoteResource{name, buf}
+			// And add the note to the list
+			res = append(res, &NoteResource{name, rel, buf})
+		}
 	}
 
 	return res, nil

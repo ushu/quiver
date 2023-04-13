@@ -156,13 +156,12 @@ func writeNote(p string, note *quiver.Note, index NotesIndex) error {
 
 	// has resources ?
 	if len(note.Resources) > 0 {
-		rp := filepath.Join(path.Dir(p), "_resources")
-		err = EnsureDirectory(rp)
-		if err != nil {
-			return err
-		}
-
 		for _, r := range note.Resources {
+			rp := filepath.Join(path.Dir(p), "_resources", r.Rel)
+			err = EnsureDirectory(rp)
+			if err != nil {
+				return err
+			}
 			op := filepath.Join(rp, r.Name)
 			err = writeResource(op, r)
 			if err != nil {
