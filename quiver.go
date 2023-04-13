@@ -161,7 +161,7 @@ func (u *NoteResource) UnmarshalJSON(data []byte) error {
 
 	// Split data url
 	if !strings.HasPrefix(aux.URL, "data:") {
-		return fmt.Errorf("Invalid data URL %v", aux.URL)
+		return fmt.Errorf("invalid data URL %v", aux.URL)
 	}
 	s := strings.SplitN(aux.URL, ",", 2)
 	if len(s) != 2 {
@@ -247,11 +247,11 @@ func IsLibrary(path string) (bool, error) {
 		return false, err
 	}
 	if !stat.IsDir() {
-		return false, errors.New("The Quiver Library should be a dictionary")
+		return false, errors.New("the Quiver Library should be a dictionary")
 	}
 	// and end with .qvlibrary
 	if !strings.HasSuffix(stat.Name(), ".qvlibrary") {
-		return false, errors.New("The Quiver Library should have .qvlibrary extension")
+		return false, errors.New("the Quiver Library should have .qvlibrary extension")
 	}
 
 	return true, nil
@@ -362,11 +362,11 @@ func IsNotebook(path string) (bool, error) {
 		return false, err
 	}
 	if !stat.IsDir() {
-		return false, errors.New("A Quiver Notebook should be a directory")
+		return false, errors.New("a Quiver Notebook should be a directory")
 	}
 	// and end with .qvnotebook
 	if !strings.HasSuffix(stat.Name(), ".qvnotebook") {
-		return false, errors.New("A Quiver Notebook should have .qvnotebook extension")
+		return false, errors.New("a Quiver Notebook should have .qvnotebook extension")
 	}
 
 	return true, nil
@@ -420,11 +420,11 @@ func IsNote(path string) (bool, error) {
 		return false, err
 	}
 	if !stat.IsDir() {
-		return false, errors.New("A Quiver Note should be a directory")
+		return false, errors.New("a Quiver Note should be a directory")
 	}
 	// and end with .qvnote
 	if !strings.HasSuffix(stat.Name(), ".qvnote") {
-		return false, errors.New("A Quiver Note should have .qvnote extension")
+		return false, errors.New("a Quiver Note should have .qvnote extension")
 	}
 
 	return true, nil
@@ -472,7 +472,7 @@ func ReadNoteResources(path string) ([]*NoteResource, error) {
 		return nil, err
 	}
 	if !stat.IsDir() {
-		return nil, errors.New("Quiver Note Resources should be held in a directory")
+		return nil, errors.New("quiver Note Resources should be held in a directory")
 	}
 
 	files, err := ioutil.ReadDir(path)
